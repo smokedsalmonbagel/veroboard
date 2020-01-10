@@ -63,6 +63,8 @@ int adcpin[] = {A2, A3, A4, A5};
 long adcsum[] = {0,0,0,0};
 long adcsamples[] = {0,0,0,0};
 
+int powerbus = D5;
+
 
 long loopCount;
 
@@ -316,7 +318,9 @@ void set_dt_from_net()
 
 int sendSystem(String command)
 {
-	  unsigned long dts = Time.now();
+//1578590744,-93,0,404,825,0,0,0,0
+
+    unsigned long dts = Time.now();
 	String sysBuffer = String(dts);
 	sysBuffer += ",";
 	sysBuffer += String(rssi);
@@ -346,21 +350,45 @@ sysBuffer += ",";
 int sendData(String command)
 {
 
-	makeDataBuffer();
+	makeDataBufferAir();
 	if(publishFlag || command == "f")
 	{
-	 Particle.publish("readings", dataBuffer);
+	 Particle.publish("air", dataBuffer);
  }
+ makeDataBufferAdc();
+ if(publishFlag || command == "f")
+ {
+  Particle.publish("adc", dataBuffer);
+}
 
 	 clearadc();
   return 1;
 }
-void makeDataBuffer()
+void makeDataBufferAir()
 {
 
 	  unsigned long dts = Time.now();
 	dataBuffer = String(dts);
+	dataBuffer += String(",a,-1,");
+
+//1578593455,a,102851,753,904,750,682,758,557,-1,-1
+
+	 dataBuffer += String(temp1);
 	dataBuffer += String(",");
+	dataBuffer += String(rh1);
+	dataBuffer += String(",");
+	dataBuffer += String(temp2);
+	dataBuffer += String(",");
+	dataBuffer += String(rh2);
+dataBuffer += String(",,,,");
+
+}
+void makeDataBufferAdc()
+{
+
+	  unsigned long dts = Time.now();
+	dataBuffer = String(dts);
+	dataBuffer += String(",b,");
 		int n=0;
 	 while(n < adclen)
 	 {
@@ -370,23 +398,17 @@ void makeDataBuffer()
 		 	 avg = adcsum[n] / adcsamples[n];
 
 		}
+    dataBuffer += String(adcsum[n]);
 
-		dataBuffer += String(avg);
+     dataBuffer += String("/");
+     dataBuffer += String(adcsamples[n]);
+     dataBuffer += String(",");
 
-		 dataBuffer += String(",");
 
 		 n++;
 	 }
+//1578593454,b,4090\/1,1155\/1,5\/1,33\/1,
 
-	 dataBuffer += String(adcsamples[0]);
-	  dataBuffer += String(",");
-	 dataBuffer += String(temp1);
-	dataBuffer += String(",");
-	dataBuffer += String(rh1);
-	dataBuffer += String(",");
-	dataBuffer += String(temp2);
-	dataBuffer += String(",");
-	dataBuffer += String(rh2);
 
 
 }
@@ -437,24 +459,48 @@ int setPubFlag(String command)
 	}
 	return publishFlag;
 }
+int softreset(String command)
+{
+  System.reset();
+  return 1;
+
+}
+int powerreset(String command)
+{
+  digitalWrite(powerbus, LOW);
+  delay(1000);
+  digitalWrite(powerbus, HIGH);
+  return 11;
+}
+int getv(String command)
+{
+
+  return 2;
+}
 
 Timer sampleSlowTimer(10000, sampleSlow);
 Timer sampleFastTimer(1000, sampleFast);
-Timer sendTimer(900000, sendDataInt);
-Timer diagTimer(900000, sendDiag);
-
+//Timer sendTimer(900000, sendDataInt);
+//Timer diagTimer(900000, sendDiag);
+Timer sendTimer(600000, sendDataInt);
+Timer diagTimer(600000, sendDiag);
 void setup()
 {
 	Serial1.begin(57600);
 
 	System.on(all_events, handle_all_the_events);
-
+  pinMode(powerbus,OUTPUT);
+  digitalWrite(powerbus, HIGH);
 	Particle.variable("vbatt", vbatt);
 	Particle.variable("rssi", rssi);
 	Particle.variable("battlevel", battlevel);
 	Particle.function("sendSystem", sendSystem);
 	Particle.function("sendData", sendData);
 	Particle.function("publishFlag", setPubFlag);
+  Particle.function("softreset", softreset);
+  Particle.function("powerreset", powerreset);
+  Particle.function("getv", getv);
+
 
 	 initadc();
 
@@ -494,7 +540,8 @@ void loop()
 	 readFlag = 0;
 	 readDHT1();
  		readDHT2();
-		makeDataBuffer();
+		makeDataBufferAir();
+    makeDataBufferAdc();
 		logBuffer = dataBuffer;
 		logNow(0);
 
